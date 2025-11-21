@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Wishlist - QuickShop</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/normalize.css">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" type="image/png" href="assets/images/logo.png">
+</head>
+<body>
+  <!-- Navigation Header (shared across pages) -->
+  <header class="navbar navbar-expand-md navbar-dark bg-primary sticky-top shadow-sm">
+    <div class="container-fluid px-3 px-md-4">
+      <a class="navbar-brand fw-bold fs-4 me-4" href="index.html">
+        <img src="assets/images/logo.png" alt="QuickShop" height="32" class="me-2">
+        QUICKSHOP
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <nav class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto gap-2">
+          <li class="nav-item position-relative">
+            <button class="nav-link btn btn-link text-white" id="openCartBtn">🛒 Cart <span id="cartCount" class="badge bg-danger position-absolute top-0 start-100 translate-middle d-none">0</span></button>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="index.html">← Back to Shop</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <section class="py-5">
+    <div class="container">
+      <h1 class="display-5 mb-4">❤️ My Wishlist</h1>
+      <p id="wishlistStatus" class="text-muted mb-4">Loading your wishlist...</p>
+      <div class="row g-4" id="wishlistGrid" role="list">
+        <!-- Populated by script -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Cart Modal -->
+  <div class="modal fade" id="cartModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0">
+          <h5 class="modal-title">Your Cart</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="cartItemsContainer"></div>
+          <div id="cartTotals" class="fw-bold mt-3"></div>
+          <div class="mt-3 d-flex gap-2">
+            <button id="checkoutBtn" class="btn btn-primary">Checkout</button>
+            <button id="clearCartBtn" class="btn btn-outline-secondary">Clear Cart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    'use strict';
+    (function () {
+      const $ = sel => document.querySelector(sel);
+      const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+      function readLS(key, fallback) {
+        try {
+          const raw = localStorage.getItem(key);
+          return raw ? JSON.parse(raw) : fallback;
+        } catch (e) {
+          return fallback;
+        }
+      }
+
+      function writeLS(key, value) {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+
+      function toast(el, msg) {
+        if (!el) return;
+        el.textContent = msg;
+      }
+
+      function getCart() {
+        return readLS('qs_cart', []);
+      }
+
+      function saveCart(cart) {
+        writeLS('qs_cart', cart);
+        updateCartCount();
+      }
+
+      function updateCartCount() {
+        const count = getCart().reduce((s, it) => s + (it.qty || 1), 0);
+        const el = $('#cartCount');
+        if (el) {
+          el.textContent = count;
+          el.classList.toggle('d-none', count === 0);
+        }
+      }
+
+      function renderWishlist() {
+        const grid = $('#wishlistGrid');
+        const status = $('#wishlistStatus');
+        const wishlist = readLS('qs_wishlist', []);
+        const products = readLS('qs_products', []);
+
+        if (!wishlist || wishlist.length === 0) {
+          toast(status, 'Your wishlist is empty. Add some items from the shop!');
+          grid.innerHTML = '<div class="col-12"><p class="text-muted">No items in wishlist.</p></div>';
+          return;
+        }
+
+        grid.innerHTML = '';
+        wishlist.forEach((item) => {
+          const product = products.find(p => p.id === item.id);
+          if (!product) return;
+
+          const col = document.createElement('div');
+          col.className = 'col-12 col-sm-6 col-md-4 col-lg-3';
+          col.innerHTML = `
+            <div class="card h-100">
+              <img src="${product.image}" alt="${product.name}" class="card-img-top">
+              <div class="card-body d-flex flex-column">
+                <h6 class="text-uppercase">${product.name}</h6>
+                <div class="text-muted mb-2">${product.category}</div>
+                <div class="fw-bold mb-3">$${Number(product.price).toFixed(2)}</div>
+                <div class="mt-auto d-flex gap-2">
+                  <button class="btn btn-sm btn-primary btn-add-to-cart-wish" data-id="${product.id}">Add to Cart</button>
+                  <button class="btn btn-sm btn-outline-danger btn-remove-wish" data-id="${product.id}">Remove</button>
+                </div>
+              </div>
+            </div>`;
+          grid.appendChild(col);
+        });
+
+        toast(status, `${wishlist.length} item(s) in your wishlist`);
+      }
+
+      function addToCart(productId) {
+        const products = readLS('qs_products', []);
+        const product = products.find(p => p.id === productId);
+        if (!product) return;
+        const cart = getCart();
+        const item = cart.find(i => i.id === product.id);
+        if (item) item.qty = (item.qty || 1) + 1;
+        else cart.push({ id: product.id, name: product.name, price: product.price, image: product.image, qty: 1 });
+        saveCart(cart);
+        toast($('#wishlistStatus'), 'Added to cart');
+      }
+
+      function removeFromWishlist(productId) {
+        const wishlist = readLS('qs_wishlist', []);
+        const next = wishlist.filter(item => item.id !== productId);
+        writeLS('qs_wishlist', next);
+        renderWishlist();
+      }
+
+      function renderCart() {
+        const container = $('#cartItemsContainer');
+        if (!container) return;
+        const cart = getCart();
+        if (cart.length === 0) {
+          container.innerHTML = '<p>Your cart is empty.</p>';
+          $('#cartTotals').textContent = '';
+          return;
+        }
+        container.innerHTML = cart.map((it, idx) => `
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <img src="${it.image}" alt="${it.name}" style="width:64px;height:64px;object-fit:cover">
+            <div class="flex-grow-1">
+              <div class="fw-semibold">${it.name}</div>
+              <div class="text-muted">Qty: ${it.qty}</div>
+            </div>
+            <div class="fw-bold">$${(it.price * it.qty).toFixed(2)}</div>
+          </div>
+        `).join('');
+        const total = cart.reduce((s, it) => s + (it.price * (it.qty || 1)), 0);
+        $('#cartTotals').textContent = 'Total: $' + total.toFixed(2);
+      }
+
+      function bindEvents() {
+        $('#openCartBtn')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          renderCart();
+          const modalEl = document.getElementById('cartModal');
+          if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        });
+
+        $('#wishlistGrid')?.addEventListener('click', (e) => {
+          const addBtn = e.target.closest('.btn-add-to-cart-wish');
+          const removeBtn = e.target.closest('.btn-remove-wish');
+          if (addBtn) addToCart(addBtn.dataset.id);
+          if (removeBtn) removeFromWishlist(removeBtn.dataset.id);
+        });
+
+        $('#checkoutBtn')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          alert('Checkout not implemented in demo.');
+        });
+
+        $('#clearCartBtn')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          writeLS('qs_cart', []);
+          renderCart();
+        });
+      }
+
+      function init() {
+        updateCartCount();
+        renderWishlist();
+        bindEvents();
+      }
+
+      document.addEventListener('DOMContentLoaded', init);
+    })();
+  </script>
+</body>
+</html>
